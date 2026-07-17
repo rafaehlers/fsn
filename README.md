@@ -2,62 +2,62 @@
 
 > Fly through your files.
 
-Uma releitura web do lendário **FSN (File System Navigator)** da Silicon
-Graphics: diretórios viram pedestais, arquivos viram torres e a hierarquia do
-sistema de arquivos se transforma em uma paisagem 3D navegável.
+A web reimagining of Silicon Graphics' legendary **FSN (File System
+Navigator)**: directories become pedestals, files become towers, and the file
+system hierarchy turns into a navigable 3D landscape.
 
-![FSN em execução](docs/fsn-screenshot.png)
+![FSN in action](docs/fsn-screenshot.png)
 
-## Sobre o projeto
+## About the project
 
-O FSN original foi uma experiência da SGI para investigar a navegação por
-“paisagens de informação”. Ele ficou eternizado em *Jurassic Park* na cena
-“It's a Unix system”.
+The original FSN was an SGI experiment that explored navigation through
+“information landscapes.” It was immortalized in *Jurassic Park* during the
+“It's a Unix system” scene.
 
-Este projeto recupera aquela ideia no navegador com uma interface moderna,
-mantendo a linguagem visual das estações IRIX dos anos 1990:
+This project brings that idea to the browser with a modern interface while
+preserving the visual language of 1990s IRIX workstations:
 
-- pedestais magenta representam diretórios;
-- a altura do pedestal acompanha o volume do diretório;
-- torres representam arquivos e sua altura acompanha o tamanho;
-- a cor das torres indica a idade do arquivo;
-- ícones planos identificam o tipo de arquivo;
-- nomes de diretórios aparecem em verde junto ao chão;
-- fios luminosos mostram a relação entre diretórios.
+- magenta pedestals represent directories;
+- pedestal height reflects the directory's total size;
+- towers represent files, with height reflecting file size;
+- tower color indicates file age;
+- flat icons identify file types;
+- directory names appear in green near the ground;
+- glowing wires show relationships between directories.
 
-## Privacidade
+## Privacy
 
-O navegador pode exibir um seletor com linguagem de “upload”, mas o FSN **não
-envia os arquivos para nenhum servidor**.
+The browser may use “upload” terminology in its folder picker, but FSN **does
+not send files to any server**.
 
-Somente metadados são lidos localmente:
+Only local metadata is read:
 
-- nome e caminho relativo;
-- tamanho;
-- tipo MIME;
-- data da última modificação.
+- file name and relative path;
+- size;
+- MIME type;
+- last modified date.
 
-A indexação é limitada a 500 arquivos para preservar a estabilidade de
-navegadores embarcados. Os dados permanecem apenas na memória da página e
-desaparecem quando ela é recarregada.
+Indexing is limited to 500 files to preserve stability in embedded browsers.
+Data remains only in the page's memory and disappears when the page is
+reloaded.
 
-## Controles
+## Controls
 
-| Ação | Controle |
+| Action | Control |
 | --- | --- |
-| Orbitar a câmera | Arrastar |
-| Aproximar ou afastar | Scroll |
-| Selecionar um objeto | Clique |
-| Entrar em um diretório | Duplo clique |
-| Subir um nível | `Esc` ou `Backspace` |
-| Abrir a ajuda | `H` |
+| Orbit the camera | Drag |
+| Zoom in or out | Scroll |
+| Select an object | Click |
+| Enter a directory | Double-click |
+| Move up one level | `Esc` or `Backspace` |
+| Open help | `H` |
 
-Também é possível localizar arquivos rapidamente e reorganizar a cena por
-tamanho, nome ou idade.
+Files can also be located quickly, and the scene can be reorganized by size,
+name, or age.
 
-## Executando localmente
+## Running locally
 
-Requer Node.js `>=22.13.0`.
+Requires Node.js `>=22.13.0`.
 
 ```bash
 git clone https://github.com/rafaehlers/fsn.git
@@ -66,40 +66,40 @@ npm install
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000).
 
-Para validar a versão de produção:
+To validate the production build:
 
 ```bash
 npm run build
 ```
 
-## Tecnologias
+## Technologies
 
 - [Next.js](https://nextjs.org/)
 - [React](https://react.dev/)
 - [Three.js](https://threejs.org/)
 - [vinext](https://github.com/cloudflare/vinext)
-- TypeScript e CSS
+- TypeScript and CSS
 
-## Inspiração e referências
+## Inspiration and references
 
-- [FSN original — página arquivada da Silicon Graphics](https://archive.irixnet.org/siliconsurf/free/cool_sw_01.html)
+- [The original FSN — archived Silicon Graphics page](https://archive.irixnet.org/siliconsurf/free/cool_sw_01.html)
 - [Jurassic Park computers in excruciating detail — Fabien Sanglard](https://fabiensanglard.net/jurrasic_park_computers/index.html)
-- [File System Visualizer — artigo na Wikipedia](https://en.wikipedia.org/wiki/File_System_Visualizer)
-- [fsv — clone livre do FSN para sistemas Unix](https://fsv.sourceforge.net/)
+- [File System Visualizer — Wikipedia](https://en.wikipedia.org/wiki/File_System_Visualizer)
+- [fsv — an open-source FSN clone for Unix systems](https://fsv.sourceforge.net/)
 
-O artigo de Fabien Sanglard foi a faísca para este projeto. Além de documentar
-minuciosamente as máquinas usadas em *Jurassic Park*, ele mostra como o FSN foi
-utilizado na SGI Crimson de Dennis Nedry para navegar pelo diretório `/usr`.
+Fabien Sanglard's article was the spark for this project. In addition to
+documenting the computers used in *Jurassic Park* in extraordinary detail, it
+shows how FSN was used on Dennis Nedry's SGI Crimson to navigate the `/usr`
+directory.
 
-## Estado
+## Status
 
-Este é um experimento visual e não pretende substituir o gerenciador de
-arquivos do sistema operacional — o mesmo espírito declarado pela SGI para o
-FSN original.
+This is a visual experiment and is not intended to replace the operating
+system's file manager — the same spirit declared by SGI for the original FSN.
 
 ---
 
-Projeto independente, sem afiliação com Silicon Graphics, Universal Pictures ou
-os autores das referências acima.
+This is an independent project with no affiliation with Silicon Graphics,
+Universal Pictures, or the authors of the references above.
