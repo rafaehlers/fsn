@@ -19,23 +19,8 @@ type FsNode = {
 
 type SortMode = "size" | "name" | "age";
 
-type BrowserDirectoryHandle = {
-  name: string;
-  values: () => AsyncIterable<BrowserDirectoryHandle | BrowserFileHandle>;
-};
-
-type BrowserFileHandle = {
-  name: string;
-  getFile: () => Promise<File>;
-};
-
-declare global {
-  interface Window {
-    showDirectoryPicker?: () => Promise<BrowserDirectoryHandle>;
-  }
-}
-
 const DAY = 86_400_000;
+const MAX_LOCAL_FILES = 500;
 
 const demoTree: FsNode = {
   id: "demo",
@@ -144,55 +129,105 @@ function makeLabel(text: string, color = "#8ffcff") {
   return sprite;
 }
 
+function makeFileLabel(name: string, size: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 144;
+  const context = canvas.getContext("2d")!;
+  context.fillStyle = "rgba(1, 10, 14, 0.82)";
+  context.fillRect(8, 8, 496, 128);
+  context.strokeStyle = "rgba(113, 255, 242, 0.65)";
+  context.lineWidth = 2;
+  context.strokeRect(8, 8, 496, 128);
+
+  const displayName = name.length > 22 ? `${name.slice(0, 20)}…` : name;
+  let fontSize = 27;
+  context.font = `650 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  while (context.measureText(displayName).width > 450 && fontSize > 17) {
+    fontSize -= 1;
+    context.font = `650 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  }
+
+  context.textAlign = "center";
+  context.fillStyle = "#dcfffb";
+  context.shadowColor = "#71fff2";
+  context.shadowBlur = 9;
+  context.fillText(displayName, 256, 61);
+  context.shadowBlur = 5;
+  context.fillStyle = "#ff75a6";
+  context.font = "600 21px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.fillText(formatBytes(size), 256, 104);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(3.7, 1.04, 1);
+  sprite.renderOrder = 50;
+  return sprite;
+}
+
+function makeFlatFileIcon(mime?: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 192;
+  canvas.height = 192;
+  const context = canvas.getContext("2d")!;
+  const type = mime?.startsWith("image/")
+    ? { code: "IMG", color: "#8fffd2" }
+    : mime?.startsWith("text/") || mime?.includes("json")
+      ? { code: "TXT", color: "#bdefff" }
+      : mime?.startsWith("audio/")
+        ? { code: "AUD", color: "#c7b3ff" }
+        : mime?.includes("zip") || mime?.includes("archive")
+          ? { code: "ZIP", color: "#ffd28f" }
+          : { code: "FILE", color: "#91dcff" };
+
+  context.shadowColor = type.color;
+  context.shadowBlur = 18;
+  context.fillStyle = type.color;
+  context.fillRect(28, 14, 136, 164);
+  context.shadowBlur = 0;
+
+  context.fillStyle = "rgba(1, 12, 18, 0.2)";
+  context.beginPath();
+  context.moveTo(124, 14);
+  context.lineTo(164, 54);
+  context.lineTo(124, 54);
+  context.closePath();
+  context.fill();
+
+  context.fillStyle = "rgba(1, 12, 18, 0.58)";
+  context.fillRect(49, 76, 94, 8);
+  context.fillRect(49, 96, 76, 8);
+  context.fillRect(49, 116, 86, 8);
+  context.fillRect(45, 139, 102, 27);
+
+  context.fillStyle = "#f2fffd";
+  context.font = "700 18px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.textAlign = "center";
+  context.fillText(type.code, 96, 159);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+  });
+  return new THREE.Sprite(material);
+}
+
 function ageColor(modified: number) {
   const days = Math.max(0, (Date.now() - modified) / DAY);
   if (days < 3) return new THREE.Color("#8ffcff");
   if (days < 30) return new THREE.Color("#4bd7ff");
   if (days < 180) return new THREE.Color("#6e8fff");
   return new THREE.Color("#b65cff");
-}
-
-async function scanDirectory(
-  handle: BrowserDirectoryHandle,
-  parentId: string | undefined,
-  state: { count: number; maxEntries: number; maxDepth: number },
-  depth = 0,
-): Promise<FsNode> {
-  const id = parentId ? `${parentId}/${handle.name}` : `local/${handle.name}`;
-  const node: FsNode = {
-    id,
-    parentId,
-    name: handle.name,
-    kind: "directory",
-    size: 0,
-    modified: 0,
-    children: [],
-  };
-
-  if (depth > state.maxDepth) return node;
-
-  for await (const entry of handle.values()) {
-    if (state.count >= state.maxEntries) break;
-    state.count += 1;
-    if ("getFile" in entry) {
-      const file = await entry.getFile();
-      node.children!.push({
-        id: `${id}/${file.name}`,
-        parentId: id,
-        name: file.name,
-        kind: "file",
-        size: file.size,
-        modified: file.lastModified || Date.now(),
-        mime: file.type,
-      });
-    } else {
-      node.children!.push(await scanDirectory(entry, id, state, depth + 1));
-    }
-  }
-
-  node.size = node.children!.reduce((total, child) => total + child.size, 0);
-  node.modified = node.children!.reduce((latest, child) => Math.max(latest, child.modified), 0) || Date.now();
-  return node;
 }
 
 function filesToTree(files: File[]) {
@@ -206,7 +241,7 @@ function filesToTree(files: File[]) {
     children: [],
   };
 
-  for (const file of files.slice(0, 600)) {
+  for (const file of files) {
     const parts = (file.webkitRelativePath || file.name).split("/").filter(Boolean);
     let cursor = root;
     for (const segment of parts.slice(1, -1)) {
@@ -288,35 +323,40 @@ export default function FsnNavigator() {
     files: sortedChildren.filter((node) => node.kind === "file").length,
   }), [sortedChildren]);
 
-  const openDirectory = useCallback(async () => {
-    if (!window.showDirectoryPicker) {
-      inputRef.current?.click();
-      return;
-    }
-    try {
-      setIsScanning(true);
-      setStatus("SCANNING…");
-      const handle = await window.showDirectoryPicker();
-      const tree = await scanDirectory(handle, undefined, { count: 0, maxEntries: 500, maxDepth: 5 });
-      setRoot(tree);
-      setCurrentId(tree.id);
-      setSelectedId(tree.id);
-      setStatus("LOCAL • READ ONLY");
-    } catch (error) {
-      if ((error as DOMException).name !== "AbortError") setStatus("ACCESS ERROR");
-    } finally {
-      setIsScanning(false);
-    }
+  const openDirectory = useCallback(() => {
+    // The experimental File System Access API can terminate embedded webviews.
+    // A directory input uses the browser's safer, read-only file selection path.
+    inputRef.current?.click();
   }, []);
 
   const onFilesSelected = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    if (!files.length) return;
-    const tree = filesToTree(files);
-    setRoot(tree);
-    setCurrentId(tree.id);
-    setSelectedId(tree.id);
-    setStatus("LOCAL • READ ONLY");
+    const fileList = event.target.files;
+    if (!fileList?.length) return;
+
+    const totalFiles = fileList.length;
+    const files: File[] = [];
+    for (let index = 0; index < Math.min(totalFiles, MAX_LOCAL_FILES); index += 1) {
+      const file = fileList.item(index);
+      if (file) files.push(file);
+    }
+
+    setIsScanning(true);
+    setStatus("INDEXING SAFELY…");
+
+    requestAnimationFrame(() => {
+      try {
+        const tree = filesToTree(files);
+        setRoot(tree);
+        setCurrentId(tree.id);
+        setSelectedId(tree.id);
+        setStatus(totalFiles > MAX_LOCAL_FILES ? `LOCAL • ${MAX_LOCAL_FILES}/${totalFiles} FILES` : "LOCAL • READ ONLY");
+      } catch {
+        setStatus("INDEX ERROR • DEMO RESTORED");
+      } finally {
+        setIsScanning(false);
+      }
+    });
+
     event.target.value = "";
   };
 
@@ -434,7 +474,7 @@ export default function FsnNavigator() {
 
     const maxSize = Math.max(...sortedChildren.map((node) => node.size), 1);
     const directories = sortedChildren.filter((node) => node.kind === "directory").slice(0, 18);
-    const files = sortedChildren.filter((node) => node.kind === "file").slice(0, 80);
+    const files = sortedChildren.filter((node) => node.kind === "file").slice(0, 32);
 
     const stageHeight = 0.65 + Math.min(2.2, Math.log10(Math.max(current.size, 1)) / 5);
     const stage = makeBox(15, stageHeight, 11, "#c53c72", "#751037");
@@ -448,8 +488,8 @@ export default function FsnNavigator() {
     disposables.push(stageOutline.geometry, stageOutline.material);
     stage.add(stageOutline);
 
-    const title = makeLabel(current.name.toUpperCase(), "#ff9abb");
-    title.position.set(0, stageHeight + 0.35, 6.3);
+    const title = makeLabel(current.name.toUpperCase(), "#55ffad");
+    title.position.set(0, 0.42, 7.3);
     group.add(title);
     disposables.push((title.material as THREE.SpriteMaterial).map!, title.material);
 
@@ -460,10 +500,12 @@ export default function FsnNavigator() {
       const spacingX = Math.min(1.45, 11.5 / columns);
       const spacingZ = Math.min(1.45, 7.5 / Math.max(1, Math.ceil(files.length / columns)));
       const height = 0.42 + Math.max(0.25, (Math.log10(node.size + 10) / Math.log10(maxSize + 10)) * 3.7);
+      const towerWidth = Math.max(0.35, spacingX * 0.62);
+      const towerDepth = Math.max(0.35, spacingZ * 0.62);
       const tower = makeBox(
-        Math.max(0.35, spacingX * 0.62),
+        towerWidth,
         height,
-        Math.max(0.35, spacingZ * 0.62),
+        towerDepth,
         ageColor(node.modified),
         "#006d83",
       );
@@ -477,6 +519,27 @@ export default function FsnNavigator() {
       group.add(tower);
       hitObjects.push(tower);
       objectById.set(node.id, tower);
+
+      const iconSize = Math.min(1.05, Math.max(0.66, Math.min(towerWidth, towerDepth) * 1.28));
+      const fileIcon = makeFlatFileIcon(node.mime);
+      fileIcon.scale.set(iconSize, iconSize, 1);
+      fileIcon.position.set(
+        tower.position.x,
+        stageHeight + height + iconSize * 0.5 + 0.06,
+        tower.position.z,
+      );
+      group.add(fileIcon);
+      disposables.push((fileIcon.material as THREE.SpriteMaterial).map!, fileIcon.material);
+
+      const fileLabel = makeFileLabel(node.name, node.size);
+      fileLabel.position.set(
+        tower.position.x,
+        stageHeight + 0.42 + (column % 2) * 0.12,
+        tower.position.z + towerDepth / 2 + 0.78,
+      );
+      fileLabel.scale.multiplyScalar(files.length > 20 ? 0.5 : 0.6);
+      group.add(fileLabel);
+      disposables.push((fileLabel.material as THREE.SpriteMaterial).map!, fileLabel.material);
     });
 
     directories.forEach((node, index) => {
@@ -495,13 +558,18 @@ export default function FsnNavigator() {
       hitObjects.push(pedestal);
       objectById.set(node.id, pedestal);
 
-      const label = makeLabel(node.name, "#7ffaf2");
-      label.position.set(x, pedestalHeight + 1.0, z);
-      label.scale.set(5.5, 1.05, 1);
+      const radialLength = Math.hypot(x, z) || 1;
+      const label = makeLabel(node.name, "#55ffad");
+      label.position.set(
+        x - (x / radialLength) * 4.15,
+        0.42,
+        z - (z / radialLength) * 4.15,
+      );
+      label.scale.set(5.8, 1.1, 1);
       group.add(label);
       disposables.push((label.material as THREE.SpriteMaterial).map!, label.material);
 
-      const childFiles = (node.children ?? []).filter((child) => child.kind === "file").slice(0, 14);
+      const childFiles = (node.children ?? []).filter((child) => child.kind === "file").slice(0, 6);
       childFiles.forEach((child, childIndex) => {
         const childHeight = 0.35 + Math.min(2.8, Math.log10(child.size + 10) / 2.8);
         const block = makeBox(0.55, childHeight, 0.55, ageColor(child.modified), "#005568");
@@ -514,6 +582,26 @@ export default function FsnNavigator() {
         block.userData.kind = "directory";
         group.add(block);
         hitObjects.push(block);
+
+        const childIcon = makeFlatFileIcon(child.mime);
+        childIcon.scale.set(0.72, 0.72, 1);
+        childIcon.position.set(
+          block.position.x,
+          pedestalHeight + childHeight + 0.42,
+          block.position.z,
+        );
+        group.add(childIcon);
+        disposables.push((childIcon.material as THREE.SpriteMaterial).map!, childIcon.material);
+
+        const childLabel = makeFileLabel(child.name, child.size);
+        childLabel.position.set(
+          block.position.x,
+          pedestalHeight + 0.34,
+          block.position.z + 0.96,
+        );
+        childLabel.scale.multiplyScalar(0.46);
+        group.add(childLabel);
+        disposables.push((childLabel.material as THREE.SpriteMaterial).map!, childLabel.material);
       });
 
       const points = [
@@ -540,9 +628,10 @@ export default function FsnNavigator() {
 
     let hoveredObject: THREE.Object3D | undefined;
     const setHoverMaterial = (object: THREE.Object3D | undefined, active: boolean) => {
-      const mesh = object as THREE.Mesh;
-      const material = mesh.material as THREE.MeshStandardMaterial;
-      if (!material?.emissive) return;
+      if (!(object instanceof THREE.Mesh)) return;
+      const mesh = object as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+      const material = mesh.material;
+      if (!material.emissive) return;
       material.emissiveIntensity = active ? 1.2 : 0.24;
       mesh.scale.setScalar(active ? 1.06 : 1);
     };
@@ -685,7 +774,7 @@ export default function FsnNavigator() {
           onChange={onFilesSelected}
           {...({ webkitdirectory: "", directory: "" } as React.InputHTMLAttributes<HTMLInputElement>)}
         />
-        <p className="privacy-note">Acesso local e somente leitura. Nenhum arquivo sai deste computador.</p>
+        <p className="privacy-note">Modo seguro: somente metadados de até {MAX_LOCAL_FILES} arquivos. Nada sai deste computador.</p>
 
         <div className="search-wrap">
           <label htmlFor="fsn-search">QUICK LOCATE</label>
